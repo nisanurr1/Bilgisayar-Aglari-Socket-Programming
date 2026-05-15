@@ -33,6 +33,11 @@ def tcp_dinle():
 
         print(f"Yeni TCP bağlantısı geldi -> {adres}")
 
+        # İstemciden kullanıcı adı alınır
+        kullanici_adi = istemci_soketi.recv(BUFFER_SIZE).decode("utf-8")
+
+        print(f"{kullanici_adi} [TCP] ile sohbet odasına katılmak istiyor.")
+
 
 # UDP mesajlarını dinleyen fonksiyon
 def udp_dinle():
