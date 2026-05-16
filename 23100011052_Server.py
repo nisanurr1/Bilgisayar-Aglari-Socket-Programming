@@ -19,8 +19,8 @@ udp_istemciler = []
 # kullanıcı adlarını tutmak için küme olacak, benzersiz oldukları için
 kullanici_adlari = set()
 
-# thread çakışmalarını önlemek için kilit gerekiyor
-kilit = threading.Lock()
+# thread çakışmalarını önlemek için lock yani kilit gerekiyor
+lock = threading.Lock()
 
 
 # TCP istemcilerini dinleyen fonksiyon
@@ -33,11 +33,37 @@ def tcp_dinle():
 
         print(f"Yeni TCP bağlantısı geldi -> {adres}")
 
-        # İstemciden kullanıcı adı alınır
-        kullanici_adi = istemci_soketi.recv(BUFFER_SIZE).decode("utf-8")
+        while True:
 
-        print(f"{kullanici_adi} [TCP] ile sohbet odasına katılmak istiyor.")
+            # İstemciden kullanıcı adı alınır
+            kullanici_adi = istemci_soketi.recv(BUFFER_SIZE).decode("utf-8")
 
+            ## print(f"{kullanici_adi} [TCP] ile sohbet odasına katılmak istiyor.")
+            # Burada kullanıcı adının benzersiz olup olmadığı kontrol edilecek.
+            kullanici_adi_kontrol = kullanici_adi.lower()
+
+            with lock:
+                # Aynı ada sahip başka biri var mı kontrol edilecek.
+                if kullanici_adi_kontrol in kullanici_adlari: 
+                    istemci_soketi.send("Bu kullanıcı adı zaten alınmış, lütfen başka bir tane deneyin.".encode("utf-8"))
+                
+                # Kullanıcı adı kimsede yoksa, kullanici_adlarina eklenecek.
+                else:
+                    kullanici_adlari.add(kullanici_adi_kontrol)
+                    tcp_istemciler.append({
+                        "soket": istemci_soketi,
+                        "kullanici_adi": kullanici_adi,
+                        "protokol": "TCP"
+                    })
+                    # Kullanıcı eklenince, hoşgeldiniz mesajı gönderilecek ve sohbet odasına katıldığı bildirilecek.
+                    istemci_soketi.send(
+                        f"Hoşgeldiniz {kullanici_adi}, [TCP] ile bağlısınız!".encode("utf-8")
+                    )
+
+                    print(f"{kullanici_adi} - [TCP] ile sohbet odasına katıldı.")
+
+                    break
+                
 
 # UDP mesajlarını dinleyen fonksiyon
 def udp_dinle():
