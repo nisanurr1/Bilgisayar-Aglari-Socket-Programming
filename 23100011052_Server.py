@@ -5,7 +5,6 @@ import threading
 HOST = '127.0.0.1'
 
 # PDF'te verilen TCP ve UDP port numaraları
-
 TCP_PORT = 12345
 UDP_PORT = 12346
 
@@ -22,33 +21,6 @@ kullanici_adlari = set()
 # thread çakışmalarını önlemek için lock yani kilit gerekiyor
 lock = threading.Lock()
 
-def tcp_mesaj_broadcast(mesaj, gonderen_socket, kullanici_adi): # gonderen_socket sadece göndereni ayırmak için kullanılıyor.
-
-    with lock:
-        # bağlı tüm TCP istemciler dolaşılır.
-        for istemci in tcp_istemciler:
-            if istemci["soket"] != gonderen_socket: # Mesajı gönderen kişi kendi mesajını görmesin istiyorduk.
-                try:
-                    # mesajı diğer kullanıcılara gönderiyoruz.
-                    istemci["soket"].send(f"{kullanici_adi} [TCP]: {mesaj}".encode("utf-8"))
-                except:
-                    pass
-
-def tcp_ayrilma_bildir(kullanici_adi, ayrilan_socket):
-
-    mesaj = f"{kullanici_adi} - [TCP] sohbet odasından ayrıldı."
-
-    with lock:
-        for istemci in tcp_istemciler:
-
-            # Ayrılan kişiye mesaj gönderilmez
-            if istemci["soket"] != ayrilan_socket:
-
-                try:
-                    istemci["soket"].send(mesaj.encode("utf-8"))
-
-                except:
-                    pass
 
 def tcp_istemci_mesajlarini_dinle(istemci_soketi, kullanici_adi):
 
@@ -65,7 +37,7 @@ def tcp_istemci_mesajlarini_dinle(istemci_soketi, kullanici_adi):
                 print(f"{kullanici_adi} [TCP]: {mesaj}")
 
                 # mesaj diğer TCP istemcilerine gönderilecek.
-                tcp_mesaj_broadcast(mesaj, istemci_soketi, kullanici_adi)
+                genel_mesaj_broadcast(f"{kullanici_adi} [TCP]: {mesaj}","TCP", istemci_soketi)
             else:
                 # Bağlantı kapatıldıysa döngüden çıkılır
                 break
@@ -81,7 +53,10 @@ def tcp_istemci_mesajlarini_dinle(istemci_soketi, kullanici_adi):
                 print(f"{kullanici_adi} [TCP] sohbet odasından ayrıldı.")
                 break
 
-    tcp_ayrilma_bildir(kullanici_adi, istemci_soketi)
+    ayrilma_mesaji = f"{kullanici_adi} - [TCP] sohbet odasından ayrıldı."
+
+    genel_mesaj_broadcast(ayrilma_mesaji, "TCP", istemci_soketi)
+
     istemci_soketi.close()
 
 
@@ -132,26 +107,36 @@ def tcp_dinle():
                     tcp_istemci_thread.start()
 
                     break
+          
 
-def udp_mesaj_broadcast(mesaj, gonderen_adres, kullanici_adi):
+def genel_mesaj_broadcast(mesaj, gonderen_tur, gonderen_bilgi):
 
     with lock:
 
-        # Bağlı tüm UDP istemciler dolaşılır
+        # Mesaj tüm TCP istemcilere gönderilir
+        for istemci in tcp_istemciler:
+
+            # Eğer gönderen TCP ise, kendi soketine geri gönderilmez
+            if gonderen_tur == "TCP" and istemci["soket"] == gonderen_bilgi:
+                continue
+
+            try:
+                istemci["soket"].send(mesaj.encode("utf-8"))
+            except:
+                pass
+
+        # Mesaj tüm UDP istemcilere gönderilir
         for adres in udp_istemciler:
 
-            # Mesajı gönderen kullanıcıya mesaj geri gönderilmez
-            if adres != gonderen_adres:
+            # Eğer gönderen UDP ise, kendi adresine geri gönderilmez
+            if gonderen_tur == "UDP" and adres == gonderen_bilgi:
+                continue
 
-                try:
+            try:
+                udp_sunucu.sendto(mesaj.encode("utf-8"), adres)
+            except:
+                pass
 
-                    udp_sunucu.sendto(
-                        f"{kullanici_adi} [UDP]: {mesaj}".encode("utf-8"),
-                        adres
-                    )
-
-                except:
-                    pass            
 
 # UDP mesajlarını dinleyen fonksiyon
 def udp_dinle():
@@ -195,10 +180,35 @@ def udp_dinle():
                     print(f"{kullanici_adi} - [UDP] ile sohbet odasına katıldı.")
 
         else:
+            kullanici_adi = udp_istemciler[adres]
 
-            # Bu kısma daha sonra UDP mesajlaşmayı ekleyeceğiz
-            print(f"{udp_istemciler[adres]} [UDP]: {mesaj}")
-            udp_mesaj_broadcast(mesaj, adres, udp_istemciler[adres])
+            # UDP istemcisi tam olarak "Gorusuruz" yazarsa sohbet odasından ayrılacak
+            if mesaj == "Gorusuruz":
+
+                with lock:
+                    del udp_istemciler[adres]
+                    kullanici_adlari.remove(kullanici_adi.lower())
+
+                ayrilma_mesaji = f"{kullanici_adi} - [UDP] sohbet odasından ayrıldı."
+
+                print(ayrilma_mesaji)
+
+                genel_mesaj_broadcast(ayrilma_mesaji, "UDP", adres)
+
+                continue
+
+            # Boş UDP mesajları yayınlanmaz
+            if mesaj.strip() == "":
+                continue
+
+            print(f"{kullanici_adi} [UDP]: {mesaj}")
+
+            genel_mesaj_broadcast(
+                f"{kullanici_adi} [UDP]: {mesaj}",
+                "UDP",
+                adres
+            )
+            
 
 
 # TCP ve UDP soketi oluşturulur

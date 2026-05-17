@@ -26,7 +26,6 @@ def mesajlari_dinle():
             print("Sunucu bağlantısı kesildi.")
             break
 
-
 while True:
         
     # Kullanıcıdan kullanıcı adı alınır
@@ -45,7 +44,7 @@ while True:
         break    
 
 # Mesajları almak için ayrı thread başlatılacak.
-dinleme_thread = threading.Thread(target=mesajlari_dinle)
+dinleme_thread = threading.Thread(target=mesajlari_dinle, daemon=True)
 dinleme_thread.start()
 
 while True:

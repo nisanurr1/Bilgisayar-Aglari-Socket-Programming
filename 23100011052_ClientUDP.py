@@ -52,7 +52,7 @@ while True:
     # Kullanıcı adı kabul edildiyse döngüden çıkılır
     if cevap.startswith("Hoşgeldiniz"):
         break
-dinleme_thread = threading.Thread(target=mesajlari_dinle)
+dinleme_thread = threading.Thread(target=mesajlari_dinle, daemon=True)
 dinleme_thread.start()
 
 # Burada her veri paketi bağımsız olarak iletilir.
@@ -67,3 +67,10 @@ while True:
         sunucu_adresi
     )
 
+    # Kullanıcı "Gorusuruz" yazarsa UDP istemcisi kapatılır
+    if mesaj == "Gorusuruz":
+        print("UDP sohbetinden ayrıldınız.")
+        break
+
+# UDP soketi kapatılır
+istemci_soketi.close()
